@@ -1,5 +1,5 @@
 # fairmot_ynet
-Cobine object dection &amp; tracking &amp; trajectory prediction
+Combine object dection &amp; tracking &amp; trajectory prediction
 
 ![ynet_result_front_line](https://user-images.githubusercontent.com/33422418/215961234-bac69767-471a-4aa3-b963-a6168a1a5347.jpg)
 
