@@ -31,6 +31,7 @@ def process_data(csv_or):
     data['y'] = data['y'] + (data['h'])
     uniq_obj_id = np.array(data['id'].tolist())
     uniq_obj_id = np.unique(uniq_obj_id)
+    
     for un in uniq_obj_id:
         obj_max = len(data.loc[data['id'] == un].iloc[:, :4])
         div, div_frameid = [], []
@@ -49,14 +50,15 @@ def process_data(csv_or):
         if div:
             all_id_frame.append(div_frameid)
         # print(len(div))
+    
     uniq_frame = []
     for g in all_id_frame:
         for h in g:
             uniq_frame.append(h.iloc[-1, 0])
+    
     uniq_frame_np = np.asarray(uniq_frame)
     uniq_frame_np = np.unique(uniq_frame_np)
-        # print("ini apa sih", un, obj_max , len(div))
-    # object divider
+    
     return all_id_frame, uniq_frame_np
 
 '''
@@ -77,7 +79,7 @@ new_df = pd.DataFrame({
         }, ignore_index=True)
 print( all_id[0].info())
 '''
-def all_id_converter_to_ynet(all_id):
+def all_id_converter_to_ynet_deprecated(all_id):
     all_id = [j for g in all_id for j in g]
     
     with tqdm(total=len(all_id), desc='Progress') as pbar:
@@ -96,14 +98,7 @@ def all_id_converter_to_ynet(all_id):
                                 'y' : 0,
                                 'sceneId': (forms[:-1 * len(str(last))] + str(last))
                                 })
-                '''
-                all_id[ind] = all_id[ind].append({'frame_n': last + j,
-                                  'id' : id,
-                                  'x' : 0,
-                                  'y' : 0,
-                                  'sceneId': (forms[:-1 * len(str(last))] + str(last))
-                                  }, ignore_index=True)
-                '''
+            # Very inefficient, and will spent a lot of time.
             all_id[ind] = pd.concat([all_id[ind], pd.DataFrame.from_records(ind_list)], ignore_index=True)
             
             merge_ = all_id[0]
@@ -118,9 +113,46 @@ def all_id_converter_to_ynet(all_id):
             merge_.pop('id')
             merge_ = merge_.iloc[:, [3, 5, 0, 1, 2, 4]]
             FairYnet_test_path = '../../ynet/data/FairYnet/'
-            merge_.to_pickle(f'{FairYnet_test_path}fair-mot_test.pkl')
+            merge_.to_pickle(f'{FairYnet_test_path}fair-mot_test_orig.pkl')
             
             pbar.update(1)
+    
+    print('success (2/2)')
+
+# Optimize
+def all_id_converter_to_ynet(all_id):
+    all_id = [j for g in all_id for j in g]
+    
+    with tqdm(total=len(all_id), desc='Progress') as pbar:
+        for ind, g in enumerate(all_id):
+            last = g.iloc[-1, 0]
+            id = g.iloc[-1, 1]
+            forms = "00000"
+            all_id[ind]['sceneId'] = [(forms[:-1 * len(str(last))] + str(last)) for g in range(8)]
+            
+            ind_list = []
+            for j in range(1,13):
+                ind_list.append({'frame_n': last + j,
+                                 'id' : id,
+                                 'x' : 0,
+                                 'y' : 0,
+                                 'sceneId': (forms[:-1 * len(str(last))] + str(last))
+                                })
+            
+            all_id[ind] = pd.concat([all_id[ind], pd.DataFrame.from_records(ind_list)], ignore_index=True)
+            pbar.update(1)
+    
+    merge_ = pd.concat(all_id, ignore_index=True)
+    merge_['frame'] = merge_['frame_n']
+    merge_['metaId'] = merge_['id']
+    merge_['metaId'] = 0
+    merge_['trackId'] = merge_['id']
+    merge_['trackId'] = merge_['trackId'].astype(float)
+    merge_.drop(['frame_n', 'id'], axis=1, inplace=True)
+    merge_ = merge_.iloc[:, [3, 5, 0, 1, 2, 4]]
+    
+    FairYnet_test_path = '../../ynet/data/FairYnet/'
+    merge_.to_pickle(f'{FairYnet_test_path}fair-mot_test.pkl')
     
     print('success (2/2)')
 
@@ -149,7 +181,19 @@ if __name__ == "__main__":
         shutil.rmtree("frame_ynet", ignore_errors=True)
     shutil.copytree("frame", "frame_ynet", symlinks=False, ignore=None, copy_function=shutil.copy2, ignore_dangling_symlinks=False, dirs_exist_ok=False)
     
+    import time
+    t1 = time.time()
+    convertion_csv()
+    all_id, uniq_frame = process_data("results.csv")
+    move_frame_FairYnet_ynet(uniq_frame)
+    all_id_converter_to_ynet_deprecated(all_id)
+    t2 = time.time()
+    print("Original speed:", round(t2-t1,4), "s")
+    
+    t1 = time.time()
     convertion_csv()
     all_id, uniq_frame = process_data("results.csv")
     move_frame_FairYnet_ynet(uniq_frame)
     all_id_converter_to_ynet(all_id)
+    t2 = time.time()
+    print("Now speed:", round(t2-t1,4), "s")
